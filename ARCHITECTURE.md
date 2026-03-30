@@ -2,14 +2,14 @@
 
 ## Overview
 
-SkyPulse is a flight delay analysis dashboard built with Python and Streamlit. It ingests flight delay data from multiple countries (currently US and India), normalizes it to a unified schema, and serves interactive visualizations through a web interface.
+SkyPulse is a flight delay analysis dashboard with ML prediction, built with Python and Streamlit. It ingests flight delay data from multiple countries (US and India), normalizes it to a unified schema, trains ML models, and serves interactive visualizations through a web interface.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     DATA SOURCES                         │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
 │  │  BTS (US)    │  │ DGCA (India) │  │  Future...   │  │
-│  │  ZIP/CSV     │  │ CSV/Kaggle   │  │              │  │
+│  │  ZIP/CSV     │  │ OTP rates    │  │              │  │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  │
 └─────────┼──────────────────┼──────────────────┼─────────┘
           │                  │                  │
@@ -24,43 +24,29 @@ SkyPulse is a flight delay analysis dashboard built with Python and Streamlit. I
 │         ▼                  ▼                             │
 │  ┌─────────────────────────────────┐                    │
 │  │         merge.py                │                    │
-│  │  us_flights + india_flights     │                    │
-│  │  → unified_flights.csv          │                    │
+│  │  → unified_flights.csv (620K)   │                    │
 │  └─────────────┬───────────────────┘                    │
 └────────────────┼────────────────────────────────────────┘
                  │
-                 ▼
-┌─────────────────────────────────────────────────────────┐
-│                  STREAMLIT APP                           │
-│                                                          │
-│  ┌──────────┐    ┌──────────────────────────────────┐   │
-│  │  app.py  │───▶│  utils/data_loader.py             │   │
-│  │ (entry)  │    │  @st.cache_data                   │   │
-│  └────┬─────┘    └──────────────────────────────────┘   │
-│       │                                                  │
-│       ▼          ┌──────────────────────────────────┐   │
-│  ┌──────────┐    │  utils/filters.py                 │   │
-│  │ sidebar  │───▶│  country / airline / airport /    │   │
-│  │ nav +    │    │  month filter widgets             │   │
-│  │ filters  │    └──────────────────────────────────┘   │
-│  └────┬─────┘                                           │
-│       │                                                  │
-│       ▼  (page routing)                                  │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │                   pages/                          │   │
-│  │  ┌─────────┐ ┌──────────┐ ┌───────────────────┐  │   │
-│  │  │intro.py │ │map_view  │ │delay_reasons.py   │  │   │
-│  │  │         │ │.py       │ │                    │  │   │
-│  │  └─────────┘ └──────────┘ └───────────────────┘  │   │
-│  │  ┌─────────┐ ┌──────────┐ ┌───────────────────┐  │   │
-│  │  │heatmap  │ │time_     │ │box_plots.py       │  │   │
-│  │  │.py      │ │series.py │ │                    │  │   │
-│  │  └─────────┘ └──────────┘ └───────────────────┘  │   │
-│  │  ┌──────────────┐                                 │   │
-│  │  │data_table.py │                                 │   │
-│  │  └──────────────┘                                 │   │
-│  └──────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+          ┌──────┴──────┐
+          ▼              ▼
+┌──────────────┐  ┌──────────────────────────────────────┐
+│  ML MODELS   │  │          STREAMLIT APP                │
+│              │  │                                        │
+│  ml_model.py │  │  ┌──────────┐  ┌─────────────────┐   │
+│  ┌─────────┐ │  │  │  app.py  │─▶│ data_loader.py  │   │
+│  │ Random  │ │  │  │ (entry)  │  │ @st.cache_data  │   │
+│  │ Forest  │ │  │  └────┬─────┘  └─────────────────┘   │
+│  │ (clf)   │ │  │       │                                │
+│  ├─────────┤ │  │       ▼  (page routing)                │
+│  │ XGBoost │ │  │  ┌────────────────────────────────┐   │
+│  │ (reg)   │ │  │  │           views/                │   │
+│  └─────────┘ │  │  │  intro · predict · map_view     │   │
+│  models/*.pkl│  │  │  delay_reasons · heatmap         │   │
+│              │  │  │  time_series · box_plots          │   │
+│              │  │  │  data_table                       │   │
+│              │  │  └────────────────────────────────┘   │
+└──────────────┘  └──────────────────────────────────────┘
 ```
 
 ---
@@ -95,36 +81,63 @@ BTS ZIP (per month) → extract CSV → read into pandas
 - Airport coordinates sourced from OpenFlights GitHub (no API key needed)
 - 500K row cap keeps Streamlit responsive; adjustable via `max_rows` param
 
-#### `download_india.py` — India Pipeline
+#### `download_india.py` — DGCA OTP-Calibrated Pipeline
 ```
-Source priority: local CSV → Kaggle API → synthetic sample
-→ normalize column names (handles various Kaggle schemas)
-→ map delay categories to BTS 5-category system
-→ join Indian airport coordinates (same OpenFlights source)
-→ write india_flights.csv
+Download real DGCA daily OTP CSV from GitHub
+→ parse OTP % columns per airline (strip "%" strings)
+→ for each (date, airline) record:
+    → generate flights proportional to market share (40-350/day)
+    → use real OTP rate to determine delayed vs on-time
+    → exponential delay distribution (mean 35 min)
+    → Dirichlet split across 5 delay categories
+    → bimodal departure hour distribution (6-9 AM, 5-9 PM peaks)
+→ assign to 20 real Indian airports (weighted by traffic)
+→ join coordinates from OpenFlights
+→ cap at 120K rows → write india_flights.csv
 ```
 
 **Key design decisions:**
-- Generates synthetic sample data if no real source found (app works out of box)
-- Column detection is fuzzy — handles "delay", "arr_delay", "delay_minutes" etc.
-- Graceful fallback: if delay breakdown unavailable, sets all 5 reasons to 0
+- Uses **real DGCA on-time performance rates** — not purely synthetic
+- 4-tier fallback: DGCA OTP → local CSV → Kaggle API → pure synthetic
+- `normalize_indian_data()` handles arbitrary CSV schemas if real flight-level data is placed in `data/raw/india/`
 
 #### `merge.py` — Concatenation
 - Reads `us_flights.csv` and `india_flights.csv`
 - Concatenates with `pd.concat`
 - Runs `validate()` on the result
-- Writes `unified_flights.csv` (93 MB for 550K rows)
+- Writes `unified_flights.csv` (104 MB for 620K rows)
 
 ---
 
-### 2. Streamlit App
+### 2. ML Models (`ml_model.py`)
+
+Two models trained on the unified dataset:
+
+| Model | Algorithm | Target | Performance |
+|-------|-----------|--------|-------------|
+| Classifier | Random Forest (200 trees, depth 12) | Delayed 30+ min (binary) | 64.6% accuracy (39.1% baseline) |
+| Regressor | XGBoost (300 rounds, depth 8) | Delay minutes (continuous) | 44.3 min MAE (48.5 baseline) |
+
+**Features:** COUNTRY, AIRLINE, ORIGIN, Month, Hour, Weekday_num (6 features)
+
+**Feature importances:** Country (36%) > Hour (32%) > Airline (14%) > Origin (8%) > Month (7%) > Weekday (3%)
+
+**Artifacts:** `models/delay_classifier.pkl`, `models/delay_regressor.pkl`, `models/encoders.pkl` (all git-ignored)
+
+**`predict()` function:** Takes country, airline, origin, month, hour, weekday → returns delay_probability, expected_minutes, risk_level (Low/Medium/High).
+
+---
+
+### 3. Streamlit App
 
 #### `app.py` — Entry Point
 - Sets page config (title, icon, wide layout)
 - Loads data via cached `load_data()` — CSV read once, survives Streamlit reruns
-- Renders sidebar: navigation radio + country filter
-- Routes to the correct page module based on selection
-- Pages imported lazily (only the active page module loads)
+- Renders sidebar: navigation radio (8 tabs) + country filter
+- Routes to the correct view module based on selection
+- Views imported lazily (only the active module loads)
+
+**Note:** Views are in `views/` not `pages/` — Streamlit auto-detects `pages/` as multipage and creates duplicate navigation. Renaming to `views/` prevents this.
 
 #### `utils/data_loader.py` — Cached Loading
 - `@st.cache_data` decorator memoizes the CSV read
@@ -147,13 +160,14 @@ Source priority: local CSV → Kaggle API → synthetic sample
 
 ---
 
-### 3. Page Modules (`pages/`)
+### 4. View Modules (`views/`)
 
-Each page module exports a single `render(df: pd.DataFrame)` function. The DataFrame passed in is already filtered by country (from the sidebar).
+Each view module exports a single `render(df: pd.DataFrame)` function. The DataFrame passed in is already filtered by country (from the sidebar).
 
 | Module | Visualization | Library | Key Aggregation |
 |--------|--------------|---------|-----------------|
 | `intro.py` | st.metric cards | Streamlit | Per-country counts, means |
+| `predict.py` | Input form + results | Streamlit + ML | Single-flight prediction via ml_model.predict() |
 | `map_view.py` | CircleMarker map | Folium | Group by airport → mean delay/cost |
 | `delay_reasons.py` | Grouped bar chart | Plotly | Melt 5 delay cols → group by Month+Reason → mean |
 | `heatmap.py` | Heatmap (imshow) | Plotly | Group by Weekday+Hour → count |
@@ -161,7 +175,7 @@ Each page module exports a single `render(df: pd.DataFrame)` function. The DataF
 | `box_plots.py` | Box plot | Plotly | Delay_Hours by Month/Weekday/Hour |
 | `data_table.py` | Interactive table | Streamlit | No aggregation (raw rows) |
 
-**Pattern**: Each page follows a consistent layout:
+**Pattern**: Each view follows a consistent layout:
 1. `st.header()` — page title
 2. `st.columns([3, 1])` — chart area (75%) + filter panel (25%)
 3. Filter widgets in the right column
@@ -185,16 +199,21 @@ load_data() → returns cached DataFrame (no re-read)
 country_filter() → filters by COUNTRY column
          │
          ▼
-render(filtered_df) → page-specific filters + aggregation + chart
-         │
-         ▼
+render(filtered_df) → view-specific filters + aggregation + chart
+         │                    │
+         │              (Predict tab only)
+         │                    ▼
+         │              ml_model.predict() → classifier + regressor
+         │                    │
+         ▼                    ▼
 Browser renders updated Plotly/Folium/Streamlit components
 ```
 
 **Performance notes:**
-- CSV loaded once via `@st.cache_data` (~2s for 93MB file, then instant)
-- Aggregations happen on every rerun but are fast (pandas on 550K rows < 100ms)
+- CSV loaded once via `@st.cache_data` (~3s for 104MB file, then instant)
+- Aggregations happen on every rerun but are fast (pandas on 620K rows < 100ms)
 - Folium map is the slowest component (~1s render for 358 airports)
+- ML prediction is instant (<50ms per prediction)
 - No database needed — everything is in-memory pandas
 
 ---
@@ -209,17 +228,15 @@ Browser renders updated Plotly/Folium/Streamlit components
 5. Add carrier map + cost constant to `config.py`
 
 ### Adding a new visualization tab
-1. Create `pages/<name>.py` with a `render(df)` function
+1. Create `views/<name>.py` with a `render(df)` function
 2. Add the page name to the `st.sidebar.radio` list in `app.py`
 3. Add the import + routing in `app.py`
 
-### Adding ML prediction (planned)
-The plan is to:
-1. Train a model (Random Forest / XGBoost) on the unified dataset
-2. Features: airline, origin airport, month, day of week, hour
-3. Target: delay probability + estimated minutes
-4. Add a "Predict" tab that takes user inputs and shows predictions
-5. Model saved as pickle, loaded with `@st.cache_resource`
+### Retraining ML models
+```bash
+python ml_model.py
+```
+This reads `data/unified_flights.csv`, trains both models, and writes pickles to `models/`.
 
 ---
 
@@ -229,7 +246,8 @@ The plan is to:
 |------|------|------|
 | `data/raw/ontime_2024_*.csv` | ~260MB each (x12) | ~590K each |
 | `data/us_flights.csv` | ~85MB | 500K |
-| `data/india_flights.csv` | ~8MB | 50K |
-| `data/unified_flights.csv` | ~93MB | 550K |
+| `data/india_flights.csv` | ~20MB | 120K |
+| `data/unified_flights.csv` | ~104MB | 620K |
+| `models/*.pkl` | ~15MB total | — |
 
-Total raw data: ~3.1 GB. Total processed: ~93 MB. All git-ignored.
+Total raw data: ~3.1 GB. Total processed: ~104 MB. All git-ignored.

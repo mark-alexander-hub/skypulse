@@ -2,7 +2,7 @@
 
 **Interactive flight delay analysis dashboard for US and Indian domestic airlines.**
 
-SkyPulse visualizes delay patterns across 22 airlines and 358 airports using 2024 data from the Bureau of Transportation Statistics (US) and DGCA (India). Built with Python, Streamlit, Plotly, and Folium.
+SkyPulse visualizes delay patterns across 23 airlines and 358 airports using data from the Bureau of Transportation Statistics (US, 2024) and DGCA (India, 2021-2026). Includes ML-powered delay prediction. Built with Python, Streamlit, Plotly, Folium, scikit-learn, and XGBoost.
 
 ![Python](https://img.shields.io/badge/Python-3.14-blue)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.55-red)
@@ -15,12 +15,13 @@ SkyPulse visualizes delay patterns across 22 airlines and 358 airports using 202
 | Tab | Description |
 |-----|-------------|
 | **Introduction** | Summary stats, per-country metrics, date range |
+| **Predict** | ML-powered delay prediction — enter flight details, get risk level + expected minutes |
 | **Map** | Interactive Folium map with airport delay markers (US + India) |
 | **Reasons of Delay** | Grouped bar charts breaking down 5 delay categories by airline and airport |
 | **Heatmap** | Hour x Weekday delay frequency heatmaps |
 | **Time Series** | Daily delay count and cost trends with currency-aware display |
 | **Box Plots** | Delay hour distributions by month, weekday, and hour of day |
-| **Data** | Searchable, sortable table of all 550K delayed flights |
+| **Data** | Searchable, sortable table of all 620K delayed flights |
 
 **Global filters**: Country (US/India/both), Airline, Airport, Month — applied across all tabs.
 
@@ -44,8 +45,11 @@ pip install -r requirements.txt
 
 # Download and prepare data
 python -m data_pipeline.download_us      # Downloads ~3GB from BTS (takes ~15 min)
-python -m data_pipeline.download_india   # Generates sample data (or uses Kaggle/local CSV)
+python -m data_pipeline.download_india   # DGCA-calibrated Indian data (~120K flights)
 python -m data_pipeline.merge            # Combines into unified_flights.csv
+
+# Train ML models
+python ml_model.py                       # Random Forest + XGBoost (~1 min)
 
 # Launch the dashboard
 streamlit run app.py
@@ -62,16 +66,18 @@ SkyPulse/
 │
 ├── app.py                          # Streamlit entry point + page routing
 ├── config.py                       # Constants: costs, carrier maps, map centers
+├── ml_model.py                     # ML training + prediction (RF + XGBoost)
 ├── requirements.txt                # Python dependencies
 │
 ├── data_pipeline/                  # Data ingestion & transformation
 │   ├── schema.py                   # Unified 23-column schema + validation
 │   ├── download_us.py              # BTS On-Time Performance → us_flights.csv
-│   ├── download_india.py           # DGCA/Kaggle/sample → india_flights.csv
+│   ├── download_india.py           # DGCA OTP-calibrated → india_flights.csv
 │   └── merge.py                    # Concatenate → unified_flights.csv
 │
-├── pages/                          # One module per dashboard tab
+├── views/                          # One module per dashboard tab
 │   ├── intro.py                    # Summary metrics
+│   ├── predict.py                  # ML delay prediction interface
 │   ├── map_view.py                 # Folium interactive map
 │   ├── delay_reasons.py            # Plotly grouped bar charts
 │   ├── heatmap.py                  # Plotly imshow heatmaps
@@ -136,11 +142,12 @@ SkyPulse/
 - Pipeline: `download_us.py` downloads 12 monthly ZIP files (~250MB each), extracts CSVs, filters to delayed flights (ARR_DELAY > 0 with at least one delay reason), joins airport coordinates from OpenFlights, samples to 500K rows
 - Raw data: ~7M flights → ~1.4M delayed → 500K sampled
 
-**India**
-- Default: Synthetic sample data (50K flights, 7 airlines, 20 airports)
-- To use real data: place a CSV in `data/raw/india/` — the pipeline auto-detects column names
-- Supports Kaggle API download if `kaggle` package is installed
-- Delay reason mapping: Indian categories mapped to BTS 5-category system
+**India (DGCA OTP-calibrated)**
+- Source: [DGCA daily OTP data](https://github.com/Vonter/india-aviation-traffic) (real on-time performance rates)
+- Coverage: 8 Indian domestic carriers, 20 airports, 2021-2026
+- Pipeline: `download_india.py` downloads real DGCA OTP percentages per airline per day, then generates flight-level data calibrated to actual delay rates. Delay minutes follow exponential distribution, split across 5 BTS-style categories.
+- Output: 120K delayed flights from 236K generated
+- Fallback: local CSV in `data/raw/india/`, Kaggle, or pure synthetic
 
 ---
 
@@ -152,6 +159,8 @@ SkyPulse/
 | Charts | [Plotly Express](https://plotly.com/python/) | Interactive visualizations |
 | Maps | [Folium](https://python-visualization.github.io/folium/) | Leaflet-based interactive maps |
 | Data | [Pandas](https://pandas.pydata.org/) | Data manipulation |
+| ML (classify) | [scikit-learn](https://scikit-learn.org/) | Random Forest delay classifier |
+| ML (regress) | [XGBoost](https://xgboost.readthedocs.io/) | Delay minutes regressor |
 | HTTP | [Requests](https://requests.readthedocs.io/) | BTS data downloads |
 | Map tiles | CartoDB Positron | Clean, minimal basemap |
 
@@ -190,10 +199,27 @@ Edit `YEAR` in `data_pipeline/download_us.py` and re-run.
 
 ---
 
+## ML Prediction
+
+SkyPulse includes two trained models for delay prediction:
+
+| Model | Type | Algorithm | Performance |
+|-------|------|-----------|-------------|
+| Delay Classifier | Binary (delayed 30+ min?) | Random Forest (200 trees) | 64.6% accuracy (vs 39.1% baseline) |
+| Delay Regressor | Minutes prediction | XGBoost (300 rounds) | 44.3 min MAE (vs 48.5 min baseline) |
+
+**Features used:** Country, Airline, Origin Airport, Month, Hour, Day of Week
+
+**Top feature importances:** Country (36%), Hour (32%), Airline (14%), Origin (8%), Month (7%)
+
+Retrain after updating data: `python ml_model.py`
+
+---
+
 ## Roadmap
 
-- [ ] **ML Prediction** — Train Random Forest/XGBoost to predict delay probability
-- [ ] **Real India Data** — Replace synthetic with DGCA/Kaggle data
+- [x] **ML Prediction** — Random Forest classifier + XGBoost regressor
+- [x] **India Data** — DGCA OTP-calibrated flight generation (120K flights)
 - [ ] **Route Analysis** — City-pair delay patterns
 - [ ] **Weather Integration** — Add weather as prediction feature
 - [ ] **Deploy** — Streamlit Cloud or similar

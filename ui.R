@@ -43,11 +43,11 @@ shinyUI(dashboardPage(
         tabName = 'intro',
         div(
             br(),
-            h1('Background'),
-            h3(" There are thousands of flight delays in the world everyday."),
-            h3('Direct Aircraft Operating Cost is 74.2 $/min. Flight delays cost airlines billions of dollars every year.'),
-            h3("It is important for the airlines to minimize flight delays."),
-            h3('This app can help the airline to better visualize flight delays.'),
+            h1('US Flight Delay Analysis'),
+            h3('There are thousands of flight delays in the US every day.'),
+            h3('Direct Aircraft Operating Cost is $74.2/min. Flight delays cost airlines billions of dollars every year.'),
+            h3('This dashboard analyzes delayed flights across major US airlines using Bureau of Transportation Statistics data.'),
+            h3('Use the tabs to explore delay patterns by airport, airline, time of day, and cause.'),
         ) #end of div
       ) 
       #Map-Visualization

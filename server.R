@@ -37,7 +37,7 @@ shinyServer(function(input, output){
     leaflet(map_df) %>% 
       addTiles () %>% 
       setView(lng = -98.58, lat = 39.82, zoom = 3) %>% 
-      addProviderTiles("Stamen.Toner") %>% 
+      addProviderTiles("CartoDB.Positron") %>% 
       addCircleMarkers(~ LONGITUDE, ~LATITUDE,
                        fillColor = ~mypalette(mean_delay_hour),
                        fillOpacity = 0.7, 
@@ -71,18 +71,18 @@ shinyServer(function(input, output){
       summarise(., Delay_Hours=round(mean(Delay_Hours),digits=1)) %>% 
       ggplot(aes(x = Month, y =Delay_Hours)) + 
       geom_bar(stat = 'identity',aes(fill = Reason), position='dodge')+
-      ggtitle(" 2018 Average Delay Hours per Flight")+ylab('Average Delay Hours per Flight')
+      ggtitle("Average Delay Hours per Flight")+ylab('Average Delay Hours per Flight')
   }) #end ouput
-  
+
   #tab output reason by month, dodge bar chart-select airport
   output$Reason_month_dodged_city=renderPlotly({
-    gathered_delay %>% 
-      filter(., ORIGIN  %in% input$DepAirport) %>% 
-      group_by(., Reason,Month) %>% 
-      summarise(., Delay_Hours=round(mean(Delay_Hours),digits=1)) %>% 
-      ggplot(aes(x = Month, y =Delay_Hours)) + 
+    gathered_delay %>%
+      filter(., ORIGIN  %in% input$DepAirport) %>%
+      group_by(., Reason,Month) %>%
+      summarise(., Delay_Hours=round(mean(Delay_Hours),digits=1)) %>%
+      ggplot(aes(x = Month, y =Delay_Hours)) +
       geom_bar(stat = 'identity',aes(fill = Reason), position='dodge')+
-      ggtitle(" 2018 Average Delay Hours per Flight")+ylab('Average Delay Hours per Flight')
+      ggtitle("Average Delay Hours per Flight")+ylab('Average Delay Hours per Flight')
   }) #end ouput
   
   

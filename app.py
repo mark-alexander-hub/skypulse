@@ -41,20 +41,20 @@ filtered = country_filter(df)
 # --- Page routing ---
 # Import pages lazily to avoid circular imports and speed up startup
 if page == "Introduction":
-    from pages.intro import render
+    from views.intro import render
 elif page == "Predict":
-    from pages.predict import render
+    from views.predict import render
 elif page == "Map":
-    from pages.map_view import render
+    from views.map_view import render
 elif page == "Reasons of Delay":
-    from pages.delay_reasons import render
+    from views.delay_reasons import render
 elif page == "Heatmap":
-    from pages.heatmap import render
+    from views.heatmap import render
 elif page == "Time Series":
-    from pages.time_series import render
+    from views.time_series import render
 elif page == "Delay Hours Box Plots":
-    from pages.box_plots import render
+    from views.box_plots import render
 elif page == "Data":
-    from pages.data_table import render
+    from views.data_table import render
 
 render(filtered)

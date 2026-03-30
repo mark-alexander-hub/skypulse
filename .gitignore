@@ -1,0 +1,24 @@
+# Data files (too large for GitHub)
+*.csv
+data/raw/*.csv
+data/raw/*.zip
+
+# R session
+.Rhistory
+.Rdata
+.RData
+.Ruserdata
+.Rproj.user/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# ML models (regenerate with: python ml_model.py)
+models/*.pkl
+
+# OS files
+.DS_Store
+Thumbs.db

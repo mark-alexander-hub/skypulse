@@ -115,7 +115,7 @@ Two models trained on the unified dataset:
 
 | Model | Algorithm | Target | Performance |
 |-------|-----------|--------|-------------|
-| Classifier | Random Forest (200 trees, depth 12) | Delayed 30+ min (binary) | 64.6% accuracy (39.1% baseline) |
+| Classifier | Random Forest (200 trees, depth 12) | Delayed 30+ min (binary) | 64.6% accuracy (60.9% majority-class baseline) |
 | Regressor | XGBoost (300 rounds, depth 8) | Delay minutes (continuous) | 44.3 min MAE (48.5 baseline) |
 
 **Features:** COUNTRY, AIRLINE, ORIGIN, Month, Hour, Weekday_num (6 features)

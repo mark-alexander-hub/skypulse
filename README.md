@@ -205,7 +205,7 @@ SkyPulse includes two trained models for delay prediction:
 
 | Model | Type | Algorithm | Performance |
 |-------|------|-----------|-------------|
-| Delay Classifier | Binary (delayed 30+ min?) | Random Forest (200 trees) | 64.6% accuracy (vs 39.1% baseline) |
+| Delay Classifier | Binary (delayed 30+ min?) | Random Forest (200 trees) | 64.6% accuracy (vs 60.9% majority-class baseline) |
 | Delay Regressor | Minutes prediction | XGBoost (300 rounds) | 44.3 min MAE (vs 48.5 min baseline) |
 
 **Features used:** Country, Airline, Origin Airport, Month, Hour, Day of Week

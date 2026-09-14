@@ -90,7 +90,7 @@ def train_models(data_path: str = "data/unified_flights.csv"):
     y_pred = clf.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
     print(f"  Accuracy: {acc:.3f}")
-    print(f"  Baseline (always majority): {1 - y_clf.mean():.3f}")
+    print(f"  Baseline (always majority): {max(y_clf.mean(), 1 - y_clf.mean()):.3f}")
 
     with open(CLF_PATH, "wb") as f:
         pickle.dump(clf, f)
